@@ -4,39 +4,44 @@ import (
 	"context"
 	"github.com/go-chi/chi/v5"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nanmu42/gzip"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"strconv"
+	"test-zero-agency/internal/api/handler"
+	"test-zero-agency/internal/api/middleware"
 	"test-zero-agency/internal/app/config"
 	"test-zero-agency/internal/entity"
+	"test-zero-agency/internal/repository"
+	"test-zero-agency/internal/service"
 )
 
 func Run(ctx context.Context, cfg *config.Config) {
 	closer := newCloser()
 	logger := newLogger()
 	router := chi.NewRouter()
+	db := newDataBase(ctx, cfg)
 
 	server := newServer(cfg, router)
 	closer.Add(server.Shutdown)
+	defer db.Close()
 
-	db := newDataBase(cfg)
 	err := db.Ping(ctx)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// Repository
-	//categoryRepository := repository.NewRepository(db)
+	PeopleRepository := repository.NewPeopleRepository(db)
 
 	// Service
-	//categoryService := service.NewService(categoryRepository)
+	PeopleService := service.NewPeopleService(PeopleRepository)
 
 	// API
-	//middleware := httpMiddleware.NewMiddleware(logger)
-	//handler.RegisterHandlers(router, categoryService, middleware)
+	middleware := middleware.NewMiddleware(logger)
+	handler.RegisterPeopleHandlers(router, PeopleService, middleware)
 
 	go func() {
 		logger.DPanic("ListenAndServe", zap.Any("Error", server.ListenAndServe()))
@@ -62,18 +67,17 @@ func newServer(cfg *config.Config, router http.Handler) *http.Server {
 	}
 }
 
-func newDataBase(cfg *config.Config) *pgxpool.Pool {
+func newDataBase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
 
-	pgxConfig, err := pgxpool.ParseConfig(
-		"postgres" + "://" +
-			cfg.Username + ":" + cfg.Password + "@" + cfg.Address + "/" + cfg.DBName + cfg.Params)
+	db, err := pgxpool.New(ctx,
+		"postgres"+"://"+cfg.Username+":"+cfg.Password+"@"+cfg.Address+"/"+cfg.DBName+cfg.Params)
 	if err != nil {
 		panic(err.Error())
 	}
 	//pgLogger := zapadapter.NewLogger(logger)
 	//config.ConnConfig.Logger = pgLogger
 
-	db, err := pgxpool.ConnectConfig(context.Background(), pgxConfig)
+	err = db.Ping(ctx)
 	if err != nil {
 		panic(err.Error())
 	}
