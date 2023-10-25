@@ -1,0 +1,30 @@
+version: "3"
+
+services:
+  database:
+    container_name: "em_pg"
+    image: postgres:15
+    restart: always
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=rpass
+      - POSTGRES_DB=em_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  server:
+    container_name: "em_server"
+    build:
+      context: .
+      dockerfile: "Dockerfile"
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database
+
+volumes:
+  db-data:
