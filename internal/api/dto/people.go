@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"net/url"
 	"strconv"
 )
@@ -14,13 +16,49 @@ type GetPeopleListRequest struct {
 }
 
 type GetPeopleListResponse struct {
-	Id          int     `json:"id"`
-	Name        string  `json:"name"`
-	Surname     string  `json:"surname"`
-	Patronymic  *string `json:"patronymic,omitempty"`
-	Age         int     `json:"age"`
-	Gender      string  `json:"gender"`
-	Nationality string  `json:"nationality"`
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Surname     string `json:"surname"`
+	Patronymic  string `json:"patronymic,omitempty"`
+	Age         int    `json:"age"`
+	Gender      string `json:"gender"`
+	Nationality string `json:"nationality"`
+}
+
+type PutPeopleRequest struct {
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Surname     string `json:"surname"`
+	Patronymic  string `json:"patronymic"`
+	Age         int    `json:"age"`
+	Gender      string `json:"gender"`
+	Nationality string `json:"nationality"`
+}
+
+type PutPeopleResponse struct {
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Surname     string `json:"surname"`
+	Patronymic  string `json:"patronymic,omitempty"`
+	Age         int    `json:"age"`
+	Gender      string `json:"gender"`
+	Nationality string `json:"nationality"`
+}
+
+type PostPeopleRequest struct {
+	Name       string `json:"name" validate:"required"`
+	Surname    string `json:"surname" validate:"required"`
+	Patronymic string `json:"patronymic"`
+}
+
+type PostPeopleResponse struct {
+	Id          int    `json:"id"`
+	Name        string `json:"name"`
+	Surname     string `json:"surname"`
+	Patronymic  string `json:"patronymic"`
+	Age         int    `json:"age"`
+	Gender      string `json:"gender"`
+	Nationality string `json:"nationality"`
 }
 
 func NewGetPeopleListRequest(url url.Values) (*GetPeopleListRequest, error) {
@@ -50,4 +88,20 @@ func NewGetPeopleListRequest(url url.Values) (*GetPeopleListRequest, error) {
 	}
 
 	return &getPeopleListRequest, nil
+}
+
+func NewPostPeopleRequest(decoder *json.Decoder) (*PostPeopleRequest, error) {
+	var peopleRequest PostPeopleRequest
+
+	err := decoder.Decode(&peopleRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	err = validator.New().Struct(peopleRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return &peopleRequest, nil
 }

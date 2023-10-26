@@ -23,6 +23,11 @@ type Config struct {
 	MaxConnIdleTime time.Duration `mapstructure:"DB_MAX_CONN_IDLE_TIME" validate:"required"`
 	MaxOpenCons     int           `mapstructure:"DB_MAX_OPEN_CONS" validate:"required"`
 	MaxIdleCons     int           `mapstructure:"DB_MAX_IDLE_CONS" validate:"required"`
+
+	EnrichmentAgeDomain         string        `mapstructure:"ENRICHMENT_AGE_DOMAIN" validate:"required"`
+	EnrichmentGenderDomain      string        `mapstructure:"ENRICHMENT_GENDER_DOMAIN" validate:"required"`
+	EnrichmentNationalityDomain string        `mapstructure:"ENRICHMENT_NATIONALITY_DOMAIN" validate:"required"`
+	EnrichmentTimeout           time.Duration `mapstructure:"ENRICHMENT_TIMEOUT" validate:"required"`
 }
 
 func NewConfig() *Config {

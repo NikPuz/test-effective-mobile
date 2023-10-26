@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	api "test-zero-agency/internal/api/dto"
 	"test-zero-agency/internal/entity"
@@ -26,8 +28,9 @@ func (r PeopleRepository) SelectPeopleList(ctx context.Context, filter *entityRe
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
-		return nil, entity.NewError(err, 500)
+		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var people api.GetPeopleListResponse
@@ -41,7 +44,7 @@ func (r PeopleRepository) SelectPeopleList(ctx context.Context, filter *entityRe
 			&people.Nationality,
 		)
 		if err != nil {
-			return nil, entity.NewError(err, 500)
+			return nil, err
 		}
 
 		peopleList = append(peopleList, people)
@@ -50,27 +53,60 @@ func (r PeopleRepository) SelectPeopleList(ctx context.Context, filter *entityRe
 	return peopleList, nil
 }
 
-//func (r PeopleRepository) buildLikeQueryPeople(people *api.GetPeopleListRequest) string {
-//	queries := make([]string, 0, 6)
-//
-//	if len(people.Name) != 0 {
-//		queries = append(queries, "p.name LIKE '"+people.Name+"'")
-//	}
-//	if len(people.Surname) != 0 {
-//		queries = append(queries, "p.surname LIKE '"+people.Surname+"'")
-//	}
-//	if len(people.Patronymic) != 0 {
-//		queries = append(queries, "p.patronymic LIKE '"+people.Patronymic+"'")
-//	}
-//	if people.Age != nil {
-//		queries = append(queries, "p.age LIKE '"+strconv.Itoa(*people.Age)+"'")
-//	}
-//	if len(people.Gender) != 0 {
-//		queries = append(queries, "g.name LIKE '"+people.Gender+"'")
-//	}
-//	if len(people.Nationality) != 0 {
-//		queries = append(queries, "n.name LIKE '"+people.Nationality+"'")
-//	}
-//
-//	return strings.Join(queries, " AND ")
-//}
+func (r PeopleRepository) DeletePeople(ctx context.Context, id int) error {
+
+	result, err := r.db.Exec(ctx, `DELETE FROM people WHERE id=$1`, id)
+	if result.RowsAffected() == 0 {
+		return entity.NotFoundErrorResponse
+	} else if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r PeopleRepository) UpdatePeople(ctx context.Context, peopleRequest *api.PutPeopleRequest) (*api.PutPeopleResponse, error) {
+	var people api.PutPeopleResponse
+
+	err := r.db.QueryRow(ctx,
+		`UPDATE people SET name = $2, surname = $3, patronymic = $4, age = $5, gender = $6, nationality = $7 WHERE id = $1 
+RETURNING id, name, surname, patronymic, age, gender, nationality`,
+		peopleRequest.Id, peopleRequest.Name, peopleRequest.Surname, peopleRequest.Patronymic, peopleRequest.Age, peopleRequest.Gender, peopleRequest.Nationality).Scan(
+		&people.Id,
+		&people.Name,
+		&people.Surname,
+		&people.Patronymic,
+		&people.Age,
+		&people.Gender,
+		&people.Nationality)
+
+	if errors.As(err, &pgx.ErrNoRows) {
+		return nil, entity.NotFoundErrorResponse
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &people, nil
+}
+
+func (r PeopleRepository) InsertPeople(ctx context.Context, peopleRequest *entity.People) (*api.PostPeopleResponse, error) {
+	var people api.PostPeopleResponse
+
+	err := r.db.QueryRow(ctx,
+		`INSERT INTO people(name, surname, patronymic, age, gender, nationality) VALUES ($1, $2, $3, $4, $5, $6)
+	RETURNING id, name, surname, patronymic, age, gender, nationality`,
+		peopleRequest.Name, peopleRequest.Surname, peopleRequest.Patronymic, peopleRequest.Age, peopleRequest.Gender, peopleRequest.Nationality).Scan(
+		&people.Id,
+		&people.Name,
+		&people.Surname,
+		&people.Patronymic,
+		&people.Age,
+		&people.Gender,
+		&people.Nationality)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &people, nil
+}

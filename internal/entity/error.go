@@ -1,43 +1,40 @@
 package entity
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"runtime/debug"
+	chiM "github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 )
 
+var InternalServerErrorResponse, _ = json.Marshal(LogicError{ResponseMessage: "internal server error"})
+var NotFoundErrorResponse = &LogicError{ResponseMessage: "not found", Code: 404}
+
 type LogicError struct {
-	Message    string `json:"error"`
-	Code       int    `json:"-"`
-	StackTrace string `json:"-"`
+	ResponseMessage string `json:"error"`
+	Err             error  `json:"-"`
+	Code            int    `json:"-"`
 }
 
-func NewError(err error, code int) error {
-	if err == nil {
-		return nil
-	}
-
+func NewLogicError(err error, responseMessage string, code int) *LogicError {
 	return &LogicError{
-		Message:    err.Error(),
-		Code:       code,
-		StackTrace: string(debug.Stack()),
+		ResponseMessage: responseMessage,
+		Err:             err,
+		Code:            code,
 	}
 }
 
-func NewLogicError(err error, code int) *LogicError {
-	if err == nil {
-		return nil
+func (e *LogicError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
 	}
 
-	return &LogicError{
-		Message:    err.Error(),
-		Code:       code,
-		StackTrace: string(debug.Stack()),
-	}
+	return e.Err.Error()
 }
 
 func (e *LogicError) JsonMarshal() []byte {
-	if e == nil || len(e.Message) == 0 {
+	if e == nil || len(e.ResponseMessage) == 0 {
 		return nil
 	}
 
@@ -45,32 +42,16 @@ func (e *LogicError) JsonMarshal() []byte {
 	return b
 }
 
-func (e *LogicError) Error() string {
-	if e == nil {
-		return ""
-	}
-
-	return e.Message
-}
-
-func InternalServerError(err error) *LogicError {
-	message := "InternalServerError"
-	if err != nil && len(err.Error()) != 0 {
-		message = err.Error()
-	}
-
-	return &LogicError{
-		Message:    message,
-		Code:       500,
-		StackTrace: "",
-	}
-}
-
-func ResponseLogicError(err error) *LogicError {
+func HandleError(ctx context.Context, logger *zap.Logger, err error) ([]byte, int) {
 	var logicErr *LogicError
+	code := 500
 	if errors.As(err, &logicErr) {
-		return logicErr
+		code = logicErr.Code
+		logger.Error(logicErr.Error(), zap.String("RequestId", chiM.GetReqID(ctx)), zap.Int("ResponseCode", code))
+		return logicErr.JsonMarshal(), logicErr.Code
 	}
 
-	return InternalServerError(err)
+	logger.Error(err.Error(), zap.String("RequestId", chiM.GetReqID(ctx)), zap.Int("ResponseCode", code))
+
+	return InternalServerErrorResponse, code
 }

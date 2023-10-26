@@ -14,6 +14,7 @@ import (
 	"test-zero-agency/internal/api/middleware"
 	"test-zero-agency/internal/app/config"
 	"test-zero-agency/internal/entity"
+	"test-zero-agency/internal/getaway"
 	"test-zero-agency/internal/repository"
 	"test-zero-agency/internal/service"
 )
@@ -33,15 +34,18 @@ func Run(ctx context.Context, cfg *config.Config) {
 		panic(err.Error())
 	}
 
+	// Getaway
+	enrichment := getaway.NewEnrichment(cfg)
+
 	// Repository
-	PeopleRepository := repository.NewPeopleRepository(db)
+	peopleRepository := repository.NewPeopleRepository(db)
 
 	// Service
-	PeopleService := service.NewPeopleService(PeopleRepository)
+	peopleService := service.NewPeopleService(cfg, peopleRepository, enrichment)
 
 	// API
 	middleware := middleware.NewMiddleware(logger)
-	handler.RegisterPeopleHandlers(router, PeopleService, middleware)
+	handler.RegisterPeopleHandlers(router, peopleService, logger, middleware)
 
 	go func() {
 		logger.DPanic("ListenAndServe", zap.Any("Error", server.ListenAndServe()))
