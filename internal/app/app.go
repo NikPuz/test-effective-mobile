@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"net/http"
 	"strconv"
+
 	"test-zero-agency/internal/api/handler"
 	"test-zero-agency/internal/api/middleware"
 	"test-zero-agency/internal/app/config"
@@ -23,7 +24,7 @@ func Run(ctx context.Context, cfg *config.Config) {
 	closer := newCloser()
 	logger := newLogger()
 	router := chi.NewRouter()
-	db := newDataBase(ctx, cfg)
+	db := newDataBase(ctx, logger, cfg)
 
 	server := newServer(cfg, router)
 	closer.Add(server.Shutdown)
@@ -48,6 +49,7 @@ func Run(ctx context.Context, cfg *config.Config) {
 	handler.RegisterPeopleHandlers(router, peopleService, logger, middleware)
 
 	go func() {
+		logger.Info("starting the server", zap.String("Address", server.Addr))
 		logger.DPanic("ListenAndServe", zap.Any("Error", server.ListenAndServe()))
 	}()
 
@@ -71,10 +73,14 @@ func newServer(cfg *config.Config, router http.Handler) *http.Server {
 	}
 }
 
-func newDataBase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
+func newDataBase(ctx context.Context, logger *zap.Logger, cfg *config.Config) *pgxpool.Pool {
+
+	conn := "postgres" + "://" + cfg.Username + ":" + cfg.Password + "@" + cfg.Address + "/" + cfg.DBName + cfg.Params
+
+	logger.Info("start establishing a connection to the database", zap.String("Connect", conn))
 
 	db, err := pgxpool.New(ctx,
-		"postgres"+"://"+cfg.Username+":"+cfg.Password+"@"+cfg.Address+"/"+cfg.DBName+cfg.Params)
+		conn)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -85,6 +91,8 @@ func newDataBase(ctx context.Context, cfg *config.Config) *pgxpool.Pool {
 	if err != nil {
 		panic(err.Error())
 	}
+
+	logger.Info("successful connection to the database")
 
 	return db
 }
@@ -113,6 +121,8 @@ func newLogger() *zap.Logger {
 	if err != nil {
 		panic(err)
 	}
+
+	logger.Info("Zap Logger", zap.String("Level", logger.Level().String()))
 
 	return logger
 }
